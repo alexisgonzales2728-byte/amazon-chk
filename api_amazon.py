@@ -7,11 +7,7 @@ import os
 app = Flask(__name__)
 
 # Configuración para producción - PERMITE tu dominio de Hostinger
-CORS(app, origins=[
-    "https://ciber7erroristaschk.com/",  
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-])
+CORS(app, origins=["*"])
 
 class AmazonChecker:
     def __init__(self):
