@@ -9,4 +9,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["python", "api_amazon.py"]
+CMD ["waitress-serve", "--host=0.0.0.0", "--port=5000", "api_amazon:app"]
