@@ -28,20 +28,59 @@ class AmazonChecker:
                 self.api_url, 
                 json=data, 
                 headers=self.headers,
-                timeout=30
+                timeout=60
             )
             result = response.json()
+            
+            # Capturar el response original de Leviatan
+            original_status = result.get("status", "⚠️ Error")
+            original_message = result.get("message", "Sin mensaje")
+            
+            # Clasificar y modificar el response
+            status_lower = str(original_status).lower()
+            message_lower = str(original_message).lower()
+            
+            # Determinar si es LIVE, DEAD o ERROR
+            if any(keyword in status_lower or keyword in message_lower 
+                   for keyword in ["approved", "aprobado", "éxito", "success", "live", "active",
+                                   "valid", "válido", "checkout", "purchase", "charge", "cobro"]):
+                final_status = "LIVE"
+                final_message = "✅ Tarjeta activa"
+                
+            elif any(keyword in status_lower or keyword in message_lower 
+                     for keyword in ["declined", "rechazado", "denied", "dead", "invalid", "inválido",
+                                     "failed", "fallido", "incorrect", "incorrecto", "do not honor",
+                                     "insufficient", "insuficiente", "stolen", "lost", "restricted"]):
+                final_status = "DEAD" 
+                final_message = "❌ Tarjeta rechazada"
+                
+            elif any(keyword in status_lower or keyword in message_lower 
+                     for keyword in ["error", "fallo", "timeout", "captcha", "security", "seguridad",
+                                     "blocked", "bloqueado", "limit", "límite", "try again", "reintentar"]):
+                final_status = "ERROR"
+                final_message = "⚠️ Error en verificación"
+                
+            else:
+                # Si no coincide con ningún patrón conocido
+                final_status = "UNKNOWN"
+                final_message = "❓ Estado no determinado"
+            
             return {
                 "success": True,
-                "status": result.get("status", "⚠️ Error"),
-                "message": result.get("message", "Sin mensaje"),
+                "status": final_status,
+                "message": final_message,
+                "original_status": original_status,  # Para debugging
+                "original_message": original_message,  # Para debugging
                 "raw_response": result
             }
+            
         except Exception as e:
             return {
                 "success": False,
-                "status": "⚠️ Error",
-                "message": f"Error de conexión: {str(e)}",
+                "status": "ERROR",
+                "message": f"❌ Error de conexión: {str(e)}",
+                "original_status": "⚠️ Error",
+                "original_message": f"Error de conexión: {str(e)}",
                 "raw_response": None
             }
 
@@ -126,17 +165,20 @@ def check_multiple_cards():
             
             time.sleep(1)
         
-        approved = sum(1 for r in results if "✅ Approved" in r["result"]["status"])
-        declined = sum(1 for r in results if "❌ Declined" in r["result"]["status"])
-        errors = sum(1 for r in results if "⚠️ Error" in r["result"]["status"])
+        # Actualizar contadores con los nuevos estados
+        live_count = sum(1 for r in results if r["result"]["status"] == "LIVE")
+        dead_count = sum(1 for r in results if r["result"]["status"] == "DEAD")
+        error_count = sum(1 for r in results if r["result"]["status"] == "ERROR")
+        unknown_count = sum(1 for r in results if r["result"]["status"] == "UNKNOWN")
         
         return jsonify({
             "success": True,
             "summary": {
                 "total": len(results),
-                "approved": approved,
-                "declined": declined,
-                "error": errors
+                "live": live_count,
+                "dead": dead_count,
+                "error": error_count,
+                "unknown": unknown_count
             },
             "details": results
         })
@@ -146,3 +188,6 @@ def check_multiple_cards():
             "success": False,
             "error": f"Error interno: {str(e)}"
         }), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=False)
